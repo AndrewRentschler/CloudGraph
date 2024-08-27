@@ -39,13 +39,11 @@ func fetchPingUrls() error {
 		return fmt.Errorf("failed to register and fetch ping URLs: %v", resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)  // Updated to use io.ReadAll
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	// Expecting a response in the form of:
-	// { "nodeId": "some-id", "pingUrls": ["url1", "url2", ...] }
 	var response struct {
 		NodeId   string   `json:"nodeId"`
 		PingUrls []string `json:"pingUrls"`
@@ -75,9 +73,14 @@ func ping(url string) (time.Duration, error) {
 	return elapsed, nil
 }
 
-func sendResults(data string) error {
+func sendResults(results map[string]string) error {
 	url := fmt.Sprintf("http://%s/collect/%s", centralServerIP, nodeId)
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer([]byte(data)))
+	data, err := json.Marshal(results)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
@@ -100,18 +103,18 @@ func runPingLoop() {
 	loopRunning = true
 	defer func() { loopRunning = false }()
 
-	results := "{"
+	results := make(map[string]string)
+
 	for _, url := range pingUrls {
 		elapsed, err := ping(url)
 		if err != nil {
 			fmt.Printf("Failed to ping %s: %v\n", url, err)
-			results += fmt.Sprintf("\"%s\":\"error\",", url)
+			results[url] = "error"
 			continue
 		}
 		fmt.Printf("Ping to %s: %v\n", url, elapsed)
-		results += fmt.Sprintf("\"%s\":\"%v\",", url, elapsed)
+		results[url] = elapsed.String()
 	}
-	results = results[:len(results)-1] + "}" // Remove last comma and close JSON
 
 	err := sendResults(results)
 	if err != nil {
