@@ -61,15 +61,15 @@ func fetchPingUrls() error {
 }
 
 func ping(url string) (time.Duration, error) {
-	cmd := exec.Command("curl", "-o", "/dev/null", "-s", "-w", "%{time_total}", url)
-	output, err := cmd.Output()
+	start := time.Now()
+
+	resp, err := http.Get(url)
 	if err != nil {
 		return 0, err
 	}
-	elapsed, err := time.ParseDuration(fmt.Sprintf("%sms", string(output)))
-	if err != nil {
-		return 0, err
-	}
+	resp.Body.Close()
+
+	elapsed := fmt.Sprintf("%dms", time.Since(start).Milliseconds())
 	return elapsed, nil
 }
 
